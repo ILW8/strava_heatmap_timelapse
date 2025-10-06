@@ -9,8 +9,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # at zoom level 15, longitude 0 is tile 16384. Tile 0 starts at -180 degrees, the globe is split into 32,768 splits
-X_RANGE = [1020, 1021, 1022, 1023, 1024, 1025, 1026]
-Y_RANGE = [679, 680, 681, 682, 683]
+X_RANGE = [1021, 1022, 1023, 1024, 1025, 1025]
+Y_RANGE = [679, 680, 681, 682]
 DOWNLOAD_CONCURRENCY = 4
 
 
