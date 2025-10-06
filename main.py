@@ -14,23 +14,22 @@ Y_RANGE = [679, 680, 681, 682, 683]
 DOWNLOAD_CONCURRENCY = 4
 
 
-def generate_filter_end_dates(start_year, start_month):
-    """Generate list of first-of-month dates from start date to current date."""
+def generate_filter_end_dates(start_year, start_month, start_day=1):
+    """Generate list of weekly dates from start date to current date."""
+    from datetime import timedelta
+
+    start_date = datetime(start_year, start_month, start_day)
     current_date = datetime.now()
-    current_year, current_month = current_date.year, current_date.month
 
     filter_end_dates = []
-    year, month = start_year, start_month
+    current = start_date
 
-    while (year < current_year) or (year == current_year and month <= current_month):
-        filter_end_dates.append(f"{year}-{month:02d}-01")
-        month += 1
-        if month > 12:
-            month = 1
-            year += 1
+    while current <= current_date:
+        filter_end_dates.append(current.strftime("%Y-%m-%d"))
+        current += timedelta(weeks=1)
 
-    # If current date is not the first of the month, add it
-    if current_date.day != 1:
+    # Add current date if it's not already included
+    if filter_end_dates[-1] != current_date.strftime("%Y-%m-%d"):
         filter_end_dates.append(current_date.strftime("%Y-%m-%d"))
 
     return filter_end_dates
