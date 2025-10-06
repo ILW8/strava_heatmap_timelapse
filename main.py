@@ -49,37 +49,36 @@ def download_tile(url, params, headers, cookies, output_path, pbar):
         pbar.write(f"Failed to download tile: {response.status_code}")
 
 
-def download_tiles_for_date(filter_end, x_range, y_range, headers, cookies):
+def download_tiles_for_date(filter_end, x_range, y_range, headers, cookies, pbar):
     """Download all tiles for a given filter_end date."""
     output_dir = Path("tiles") / filter_end
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    total_tiles = len(x_range) * len(y_range)
+    for tile_x in x_range:
+        for tile_y in y_range:
+            output_path = output_dir / f"{tile_x}_{tile_y}.png"
 
-    with tqdm(total=total_tiles, desc=f"Downloading tiles for {filter_end}", leave=False) as pbar:
-        for tile_x in x_range:
-            for tile_y in y_range:
-                output_path = output_dir / f"{tile_x}_{tile_y}.png"
-
-                # Skip if tile already exists
-                if output_path.exists():
-                    pbar.update(1)
-                    continue
-
-                url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
-
-                params = {
-                    "filter_type": "all",
-                    "include_everyone": "true",
-                    "include_followers_only": "true",
-                    "include_only_me": "true",
-                    "respect_privacy_zones": "false",
-                    "filter_start": "2018-08-01",
-                    "filter_end": filter_end
-                }
-
-                download_tile(url, params, headers, cookies, output_path, pbar)
+            # Skip if tile already exists
+            if output_path.exists():
                 pbar.update(1)
+                continue
+
+            pbar.set_description(f"Downloading {filter_end} tile ({tile_x}, {tile_y})")
+
+            url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
+
+            params = {
+                "filter_type": "all",
+                "include_everyone": "true",
+                "include_followers_only": "true",
+                "include_only_me": "true",
+                "respect_privacy_zones": "false",
+                "filter_start": "2018-08-01",
+                "filter_end": filter_end
+            }
+
+            download_tile(url, params, headers, cookies, output_path, pbar)
+            pbar.update(1)
 
     return output_dir
 
@@ -142,10 +141,15 @@ def main():
         "referer": "https://www.strava.com/"
     }
 
-    # Process each filter_end date
-    for filter_end in tqdm(filter_end_dates, desc="Processing dates"):
-        output_dir = download_tiles_for_date(filter_end, X_RANGE, Y_RANGE, headers, cookies)
-        stitch_tiles(output_dir, X_RANGE, Y_RANGE)
+    # Calculate total tiles across all dates
+    total_tiles = len(filter_end_dates) * len(X_RANGE) * len(Y_RANGE)
+
+    # Process each filter_end date with a single progress bar
+    with tqdm(total=total_tiles, desc="Processing") as pbar:
+        for filter_end in filter_end_dates:
+            output_dir = download_tiles_for_date(filter_end, X_RANGE, Y_RANGE, headers, cookies, pbar)
+            pbar.set_description(f"Stitching {filter_end}")
+            stitch_tiles(output_dir, X_RANGE, Y_RANGE)
 
     print(f"\nAll downloads and stitching complete!")
 
