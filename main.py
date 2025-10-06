@@ -35,6 +35,13 @@ if __name__ == '__main__':
     with tqdm(total=total_tiles, desc="Downloading tiles") as pbar:
         for tile_x in X_RANGE:
             for tile_y in Y_RANGE:
+                output_path = output_dir / f"{tile_x}_{tile_y}.png"
+
+                # Skip if tile already exists
+                if output_path.exists():
+                    pbar.update(1)
+                    continue
+
                 url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
 
                 params = {
@@ -51,11 +58,12 @@ if __name__ == '__main__':
 
                 if response.status_code == 200:
                     # Save with filename: tile_x_tile_y.png
-                    output_path = output_dir / f"{tile_x}_{tile_y}.png"
                     with open(output_path, "wb") as f:
                         f.write(response.content)
                 elif response.status_code == 404:
-                    pass  # silently ignore tiles with no data
+                    # Create a transparent 512x512 PNG for tiles with no data
+                    transparent_tile = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+                    transparent_tile.save(output_path)
                 else:
                     pbar.write(f"Failed to download tile ({tile_x}, {tile_y}): {response.status_code}")
 
