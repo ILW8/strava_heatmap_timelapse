@@ -90,10 +90,10 @@ if __name__ == '__main__':
     else:
         tile_width, tile_height = sample_tile.size
 
-        # Create output image
+        # Create output image with transparency
         full_width = len(X_RANGE) * tile_width
         full_height = len(Y_RANGE) * tile_height
-        stitched_image = Image.new('RGB', (full_width, full_height))
+        stitched_image = Image.new('RGBA', (full_width, full_height), (0, 0, 0, 0))
 
         # Place each tile in the correct position
         for i, tile_x in enumerate(X_RANGE):
@@ -101,9 +101,12 @@ if __name__ == '__main__':
                 tile_path = output_dir / f"{tile_x}_{tile_y}.png"
                 if tile_path.exists():
                     tile = Image.open(tile_path)
+                    # Convert palette images with transparency to RGBA
+                    if tile.mode == 'P' and 'transparency' in tile.info:
+                        tile = tile.convert('RGBA')
                     x_pos = i * tile_width
                     y_pos = j * tile_height
-                    stitched_image.paste(tile, (x_pos, y_pos))
+                    stitched_image.paste(tile, (x_pos, y_pos), tile if tile.mode == 'RGBA' else None)
 
         # Save stitched image
         output_image_path = output_dir / "stitched.png"
