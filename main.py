@@ -3,8 +3,10 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
+from PIL import Image
 
 
+# at zoom level 15, longitude 0 is tile 16384. Tile 0 starts at -180 degrees, the globe is split into 32,768 splits
 X_RANGE = [1020, 1021, 1022, 1023, 1024, 1025, 1026]
 Y_RANGE = [679, 680, 681, 682, 683]
 
@@ -12,7 +14,7 @@ Y_RANGE = [679, 680, 681, 682, 683]
 if __name__ == '__main__':
     load_dotenv()
 
-    filter_end = "2019-01-01"
+    filter_end = "2025-01-01"
 
     cookies = {
         "_strava4_session": os.environ.get("STRAVA_SESSION_COOKIE", ""),
@@ -60,3 +62,42 @@ if __name__ == '__main__':
                 pbar.update(1)
 
     print(f"\nDownload complete! Tiles saved to {output_dir}")
+
+    # Stitch tiles together
+    print("Stitching tiles together...")
+
+    # Get tile dimensions from first available tile
+    sample_tile = None
+    for tile_x in X_RANGE:
+        for tile_y in Y_RANGE:
+            tile_path = output_dir / f"{tile_x}_{tile_y}.png"
+            if tile_path.exists():
+                sample_tile = Image.open(tile_path)
+                break
+        if sample_tile:
+            break
+
+    if sample_tile is None:
+        print("No tiles found to stitch!")
+    else:
+        tile_width, tile_height = sample_tile.size
+
+        # Create output image
+        full_width = len(X_RANGE) * tile_width
+        full_height = len(Y_RANGE) * tile_height
+        stitched_image = Image.new('RGB', (full_width, full_height))
+
+        # Place each tile in the correct position
+        for i, tile_x in enumerate(X_RANGE):
+            for j, tile_y in enumerate(Y_RANGE):
+                tile_path = output_dir / f"{tile_x}_{tile_y}.png"
+                if tile_path.exists():
+                    tile = Image.open(tile_path)
+                    x_pos = i * tile_width
+                    y_pos = j * tile_height
+                    stitched_image.paste(tile, (x_pos, y_pos))
+
+        # Save stitched image
+        output_image_path = output_dir / "stitched.png"
+        stitched_image.save(output_image_path)
+        print(f"Stitched image saved to {output_image_path}")
