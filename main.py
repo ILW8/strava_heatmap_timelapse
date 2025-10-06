@@ -5,11 +5,13 @@ from dotenv import load_dotenv
 from tqdm import tqdm
 from PIL import Image
 from datetime import datetime
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # at zoom level 15, longitude 0 is tile 16384. Tile 0 starts at -180 degrees, the globe is split into 32,768 splits
 X_RANGE = [1020, 1021, 1022, 1023, 1024, 1025, 1026]
 Y_RANGE = [679, 680, 681, 682, 683]
+DOWNLOAD_CONCURRENCY = 4
 
 
 def generate_filter_end_dates(start_year, start_month):
@@ -49,36 +51,69 @@ def download_tile(url, params, headers, cookies, output_path, pbar):
         pbar.write(f"Failed to download tile: {response.status_code}")
 
 
+def download_single_tile_task(tile_x, tile_y, filter_end, headers, cookies, output_dir):
+    """Task function for downloading a single tile (to be used in thread pool)."""
+    output_path = output_dir / f"{tile_x}_{tile_y}.png"
+
+    # Skip if tile already exists
+    if output_path.exists():
+        return tile_x, tile_y, "skipped"
+
+    url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
+
+    params = {
+        "filter_type": "all",
+        "include_everyone": "true",
+        "include_followers_only": "true",
+        "include_only_me": "true",
+        "respect_privacy_zones": "false",
+        "filter_start": "2018-08-01",
+        "filter_end": filter_end
+    }
+
+    response = requests.get(url, params=params, headers=headers, cookies=cookies)
+
+    if response.status_code == 200:
+        with open(output_path, "wb") as f:
+            f.write(response.content)
+        return tile_x, tile_y, "success"
+    elif response.status_code == 404:
+        # Create a transparent 512x512 PNG for tiles with no data
+        transparent_tile = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
+        transparent_tile.save(output_path)
+        return tile_x, tile_y, "success"
+    else:
+        return tile_x, tile_y, f"error_{response.status_code}"
+
+
 def download_tiles_for_date(filter_end, x_range, y_range, headers, cookies, pbar):
-    """Download all tiles for a given filter_end date."""
+    """Download all tiles for a given filter_end date using multiple threads."""
     output_dir = Path("tiles") / filter_end
     output_dir.mkdir(parents=True, exist_ok=True)
 
-    for tile_x in x_range:
-        for tile_y in y_range:
-            output_path = output_dir / f"{tile_x}_{tile_y}.png"
+    # Create list of all tile coordinates to download
+    tile_tasks = [(tile_x, tile_y) for tile_x in x_range for tile_y in y_range]
 
-            # Skip if tile already exists
-            if output_path.exists():
+    # Download tiles concurrently
+    with ThreadPoolExecutor(max_workers=DOWNLOAD_CONCURRENCY) as executor:
+        # Submit all download tasks
+        future_to_tile = {
+            executor.submit(download_single_tile_task, tile_x, tile_y, filter_end, headers, cookies, output_dir): (tile_x, tile_y)
+            for tile_x, tile_y in tile_tasks
+        }
+
+        # Process completed downloads
+        for future in as_completed(future_to_tile):
+            tile_x, tile_y = future_to_tile[future]
+            try:
+                result_x, result_y, status = future.result()
+                if status.startswith("error"):
+                    pbar.write(f"Failed to download tile ({result_x}, {result_y}): {status}")
+                pbar.set_description(f"Downloading {filter_end} tile ({result_x}, {result_y})")
+            except Exception as exc:
+                pbar.write(f"Tile ({tile_x}, {tile_y}) generated an exception: {exc}")
+            finally:
                 pbar.update(1)
-                continue
-
-            pbar.set_description(f"Downloading {filter_end} tile ({tile_x}, {tile_y})")
-
-            url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
-
-            params = {
-                "filter_type": "all",
-                "include_everyone": "true",
-                "include_followers_only": "true",
-                "include_only_me": "true",
-                "respect_privacy_zones": "false",
-                "filter_start": "2018-08-01",
-                "filter_end": filter_end
-            }
-
-            download_tile(url, params, headers, cookies, output_path, pbar)
-            pbar.update(1)
 
     return output_dir
 
