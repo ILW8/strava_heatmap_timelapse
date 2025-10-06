@@ -11,8 +11,8 @@ Y_RANGE = [679, 680, 681, 682, 683]
 if __name__ == '__main__':
     load_dotenv()
 
-    tile_x = 1020
-    tile_y = 679
+    tile_x = 1021
+    tile_y = 680
     filter_end = "2019-01-01"
 
     url = f"https://personal-heatmaps-external.strava.com/tiles/27736053/hot/11/{tile_x}/{tile_y}.png"
