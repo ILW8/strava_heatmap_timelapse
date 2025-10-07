@@ -1,3 +1,5 @@
+import time
+
 import requests
 import os
 from pathlib import Path
@@ -9,8 +11,8 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 
 
 # at zoom level 15, longitude 0 is tile 16384. Tile 0 starts at -180 degrees, the globe is split into 32,768 splits
-X_RANGE = [1021, 1022, 1023, 1024, 1025, 1025]
-Y_RANGE = [679, 680, 681, 682]
+X_RANGE = [1021, 1022, 1023, 1024]
+Y_RANGE = [680, 681, 682, 683]
 DOWNLOAD_CONCURRENCY = 4
 
 
@@ -179,7 +181,7 @@ def main():
     total_tiles = len(filter_end_dates) * len(X_RANGE) * len(Y_RANGE)
 
     # Process each filter_end date with a single progress bar
-    with tqdm(total=total_tiles, desc="Processing") as pbar:
+    with tqdm(total=total_tiles, desc="Processing", disable=False, mininterval=0.05, maxinterval=0.2) as pbar:
         for filter_end in filter_end_dates:
             output_dir = download_tiles_for_date(filter_end, X_RANGE, Y_RANGE, headers, cookies, pbar)
             pbar.set_description(f"Stitching {filter_end}")
