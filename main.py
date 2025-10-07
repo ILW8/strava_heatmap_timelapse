@@ -5,7 +5,7 @@ import os
 from pathlib import Path
 from dotenv import load_dotenv
 from tqdm import tqdm
-from PIL import Image
+from PIL import Image, ImageDraw, ImageFont
 from datetime import datetime
 from concurrent.futures import ThreadPoolExecutor, as_completed
 
@@ -140,6 +140,33 @@ def stitch_tiles(output_dir, x_range, y_range):
                 x_pos = i * tile_width
                 y_pos = j * tile_height
                 stitched_image.paste(tile, (x_pos, y_pos), tile if tile.mode == 'RGBA' else None)
+
+    # Add date text overlay in top right corner
+    draw = ImageDraw.Draw(stitched_image)
+    date_text = output_dir.name  # Use the folder name which is the date
+
+    # Try to use a nice font, fall back to default if not available
+    try:
+        font = ImageFont.truetype("arial.ttf", 48)
+    except (OSError, ValueError):
+        font = ImageFont.load_default()
+
+    # Get text bounding box to position it properly
+    bbox = draw.textbbox((0, 0), date_text, font=font)
+    text_width = bbox[2] - bbox[0]
+    text_height = bbox[3] - bbox[1]
+
+    # Position in top right with some padding
+    padding = 20
+    text_x = full_width - text_width - padding
+    text_y = padding
+
+    # Draw drop shadow (offset by 2 pixels)
+    shadow_offset = 2
+    draw.text((text_x + shadow_offset, text_y + shadow_offset), date_text, fill=(0, 0, 0, 180), font=font)
+
+    # Draw main text in bright gray
+    draw.text((text_x, text_y), date_text, fill=(220, 220, 220, 255), font=font)
 
     # Save stitched image
     output_image_path = output_dir / "stitched.png"
