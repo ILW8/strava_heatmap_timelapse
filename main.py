@@ -37,21 +37,6 @@ def generate_filter_end_dates(start_year, start_month, start_day=1):
     return filter_end_dates
 
 
-def download_tile(url, params, headers, cookies, output_path, pbar):
-    """Download a single tile and save it to disk."""
-    response = requests.get(url, params=params, headers=headers, cookies=cookies)
-
-    if response.status_code == 200:
-        with open(output_path, "wb") as f:
-            f.write(response.content)
-    elif response.status_code == 404:
-        # Create a transparent 512x512 PNG for tiles with no data
-        transparent_tile = Image.new('RGBA', (512, 512), (0, 0, 0, 0))
-        transparent_tile.save(output_path)
-    else:
-        pbar.write(f"Failed to download tile: {response.status_code}")
-
-
 def download_single_tile_task(tile_x, tile_y, filter_end, headers, cookies, output_dir):
     """Task function for downloading a single tile (to be used in thread pool)."""
     output_path = output_dir / f"{tile_x}_{tile_y}.png"
