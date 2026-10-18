@@ -11,11 +11,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 # at zoom level 15, longitude 0 is tile 16384. Tile 0 starts at -180 degrees, the globe is split into 32,768 splits
 X_RANGE = [1021, 1022, 1023, 1024]
 Y_RANGE = [680, 681, 682, 683]
-DOWNLOAD_CONCURRENCY = 4
+DOWNLOAD_CONCURRENCY = 8
 
 
 def generate_filter_end_dates(start_year, start_month, start_day=1):
-    """Generate list of weekly dates from start date to current date."""
+    """Generate list of daily dates from start date to current date."""
     from datetime import timedelta
 
     start_date = datetime(start_year, start_month, start_day)
@@ -26,7 +26,7 @@ def generate_filter_end_dates(start_year, start_month, start_day=1):
 
     while current <= current_date:
         filter_end_dates.append(current.strftime("%Y-%m-%d"))
-        current += timedelta(weeks=1)
+        current += timedelta(days=1)
 
     # Add current date if it's not already included
     if filter_end_dates[-1] != current_date.strftime("%Y-%m-%d"):
@@ -81,8 +81,14 @@ def download_tiles_for_date(filter_end, x_range, y_range, headers, cookies, pbar
     # Download tiles concurrently
     with ThreadPoolExecutor(max_workers=DOWNLOAD_CONCURRENCY) as executor:
         # Submit all download tasks
+        def log_and_execute(tile_x, tile_y, filter_end, headers, cookies, output_dir):
+            pbar.set_description(f"Downloading {filter_end} tile ({tile_x}, {tile_y})")
+            result = download_single_tile_task(tile_x, tile_y, filter_end, headers, cookies, output_dir)
+            pbar.set_description(f"Downloaded {filter_end} tile ({tile_x}, {tile_y})")
+            return result
+
         future_to_tile = {
-            executor.submit(download_single_tile_task, tile_x, tile_y, filter_end, headers, cookies, output_dir): (tile_x, tile_y)
+            executor.submit(log_and_execute, tile_x, tile_y, filter_end, headers, cookies, output_dir): (tile_x, tile_y)
             for tile_x, tile_y in tile_tasks
         }
 
@@ -93,7 +99,6 @@ def download_tiles_for_date(filter_end, x_range, y_range, headers, cookies, pbar
                 result_x, result_y, status = future.result()
                 if status.startswith("error"):
                     pbar.write(f"Failed to download tile ({result_x}, {result_y}): {status}")
-                pbar.set_description(f"Downloading {filter_end} tile ({result_x}, {result_y})")
             except Exception as exc:
                 pbar.write(f"Tile ({tile_x}, {tile_y}) generated an exception: {exc}")
             finally:
